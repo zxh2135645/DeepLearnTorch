@@ -24,8 +24,8 @@ class SoftDiceLoss(nn.Module):
         m1 = probs.view(num, -1)
         m2 = targets.view(num, -1)
         intersection = (m1 * m2)
-
-        score = 2. * (intersection.sum(1) + 1) / (m1.sum(1) + m2.sum(1) + 1)
+        smooth = 1e-8
+        score = 2. * (intersection.sum(1) + smooth) / (m1.sum(1) + m2.sum(1) + smooth)
         score = 1 - score.sum() / num
         return score
 

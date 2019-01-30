@@ -28,7 +28,7 @@ def main():
     input_img_resize = (64, 64) # The resize size of the input images of the neural net
     output_img_resize = (64, 64) # The resize size of the output images of the neural net
     batch_size = 2
-    epochs = 100 # 100
+    epochs = 50 # 100
     threshold = 1.5  # mask is 1 background and 2 infarct
     validation_size = 0.1
     sample_size = None
@@ -56,8 +56,8 @@ def main():
     # img_resize_centercrop = transformer.get_center_crop_size(X_train[0], img_resize)
 
     # Training callbacks
-    tb_viz_cb = TensorboardVisualizerCallback(os.path.join(script_dir, '../logs/tb_viz'))
-    tb_logs_cb = TensorboardLoggerCallback(os.path.join(script_dir, '../logs/tb_logs'))
+    tb_viz_cb = TensorboardVisualizerCallback(os.path.join(script_dir, '../logs/tb_viz_' + helpers.get_model_timestamp()))
+    tb_logs_cb = TensorboardLoggerCallback(os.path.join(script_dir, '../logs/tb_logs_' + helpers.get_model_timestamp()))
     model_saver_cb = ModelSaverCallback(
         os.path.join(script_dir, '../output/models/model_' + helpers.get_model_timestamp()), verbose=True)
 

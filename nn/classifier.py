@@ -35,7 +35,8 @@ class InfarctClassifier:
         self.net.load_state_dict(torch.load(model_path))
 
     def _criterion(self, logits, labels):
-        l = losses_utils.BCELoss2d().forward(logits, labels) + losses_utils.SoftDiceLoss().forward(logits, labels)
+        #l = losses_utils.BCELoss2d().forward(logits, labels) + losses_utils.SoftDiceLoss().forward(logits, labels) #TODO
+        l = losses_utils.SoftDiceLoss().forward(logits, labels)
         return l
 
     def _validate_epoch(self, valid_loader, threshold):
@@ -166,7 +167,7 @@ class InfarctClassifier:
         """
         if self.use_cuda:
             self.net.cuda()
-        optimizer = optim.Adam(self.net.parameters(), lr=1e-4)
+        optimizer = optim.Adam(self.net.parameters(), lr=1e-3)
         lr_scheduler = ReduceLROnPlateau(optimizer, 'min', patience=2, verbose=True, min_lr=1e-7)
 
         for epoch in range(epochs):

@@ -59,7 +59,8 @@ class StackDecoder(nn.Module):
 
     def forward(self, x_big, x):
         N, C, H, W = x_big.size()
-        y = F.upsample(x, size=(H, W), mode='bilinear')
+        #y = F.upsample(x, size=(H, W), mode='bilinear')
+        y = F.interpolate(x, size=(H, W), mode='bilinear')
         y = torch.cat([y, x_big], 1)
         y = self.decode(y)
         return y
@@ -78,15 +79,15 @@ class UNet1024(nn.Module):
         self.down3 = StackEncoder(64, 128, kernel_size=3)  # 128
         self.down4 = StackEncoder(128, 256, kernel_size=3)  # 64
         self.down5 = StackEncoder(256, 512, kernel_size=3)  # 32
-        self.down6 = StackEncoder(512, 768, kernel_size=3)  # 16
+        self.down6 = StackEncoder(512, 1024, kernel_size=3)  # 16
 
         self.center = nn.Sequential(
-            ConvBnRelu2d(768, 768, kernel_size=3, padding=1, stride=1),
+            ConvBnRelu2d(1024, 1024, kernel_size=3, padding=1, stride=1),
         )
 
         # 8
         # x_big_channels, x_channels, y_channels
-        self.up6 = StackDecoder(768, 768, 512, kernel_size=3)  # 16
+        self.up6 = StackDecoder(1024, 1024, 512, kernel_size=3)  # 16
         self.up5 = StackDecoder(512, 512, 256, kernel_size=3)  # 32
         self.up4 = StackDecoder(256, 256, 128, kernel_size=3)  # 64
         self.up3 = StackDecoder(128, 128, 64, kernel_size=3)  # 128
