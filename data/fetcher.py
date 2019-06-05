@@ -18,6 +18,9 @@ class DatasetFetcher:
         self.test_files = None
         self.train_masks_files = None
 
+        self.train_maskout_data = None
+        self.train_maskout_files = None
+
     def fetch_dataset(self):
         """
         Fetches the dataset and return the input paths
@@ -33,8 +36,10 @@ class DatasetFetcher:
         # print(script_dir)
         destination_path = os.path.join(script_dir, '../../input/')
         prefix = ""
-        datasets_path = [destination_path + "TrainingData" + prefix, destination_path + "TestingData" + prefix,
-                         destination_path + "TrainingLabel"]
+        # datasets_path = [destination_path + "TrainingData" + prefix, destination_path + "TestingData" + prefix,
+        #                  destination_path + "TrainingLabel", destination_path + "TrainingMask"]
+        datasets_path = [destination_path + "TrainingData_Select" + prefix, destination_path + "TestingData_Select" + prefix,
+                         destination_path + "TrainingLabel_Select", destination_path + "TrainingMask_Select"]
         is_datasets_present = True
 
         # If the folders already exists then the files may already be extracted
@@ -51,17 +56,24 @@ class DatasetFetcher:
         self.train_data = datasets_path[0]
         self.test_data = datasets_path[1]
         self.train_masks_data = datasets_path[2]
+        self.train_maskout_data = datasets_path[3]
         self.train_files = sorted(os.listdir(self.train_data))
         self.test_files = sorted(os.listdir(self.test_data))
         self.train_masks_files = sorted(os.listdir(self.train_masks_data))
+        self.train_maskout_files = sorted(os.listdir(self.train_maskout_data))
         return datasets_path
 
-    def get_image_files(self, image_id, test_file=False, get_mask=False):
+    def get_image_files(self, image_id, test_file=False, get_mask=False, get_maskout=False):
         if get_mask:
             if image_id + ".tif" in self.train_masks_files:
                 return self.train_masks_data + "/" + image_id + ".tif"
             elif image_id + ".png" in self.train_masks_files:
                 return self.train_masks_data + "/" + image_id + ".png"
+            else:
+                raise Exception("No mask with this ID found")
+        elif get_maskout:
+            if image_id + '.tif' in self.train_maskout_files:
+                return self.train_maskout_data + "/" + image_id + ".tif"
             else:
                 raise Exception("No mask with this ID found")
         elif test_file:
@@ -115,16 +127,22 @@ class DatasetFetcher:
         valid_ret = []
         valid_masks_ret = []
 
+        train_maskout_ret = []
+        valid_maskout_ret = []
+
         for id in ids_train_split:
             train_ret.append(self.get_image_files(id))
             train_masks_ret.append(self.get_image_files(id, get_mask=True))
+            train_maskout_ret.append(self.get_image_files(id, get_maskout=True))
 
         for id in ids_valid_split:
             valid_ret.append(self.get_image_files(id))
             valid_masks_ret.append(self.get_image_files(id, get_mask=True))
+            valid_maskout_ret.append(self.get_image_files(id, get_maskout=True))
 
         return [np.array(train_ret).ravel(), np.array(train_masks_ret).ravel(),
-                np.array(valid_ret).ravel(), np.array(valid_masks_ret).ravel()]
+                np.array(valid_ret).ravel(), np.array(valid_masks_ret).ravel(),
+                np.array(train_maskout_ret).ravel(), np.array(valid_maskout_ret).ravel()]
 
     def get_test_files(self, sample_size):
         test_files = self.test_files

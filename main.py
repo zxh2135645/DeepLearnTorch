@@ -18,6 +18,7 @@ import os
 from multiprocessing import cpu_count
 
 from data.dataset import TrainImageDataset, TestImageDataset
+from img.augmentation import random_shift_scale_rotate
 import multiprocessing
 
 def main():
@@ -27,7 +28,7 @@ def main():
     # Hyperparameters
     input_img_resize = (64, 64) # The resize size of the input images of the neural net
     output_img_resize = (64, 64) # The resize size of the output images of the neural net
-    batch_size = 2
+    batch_size = 16
     epochs = 50 # 100
     threshold = 1.5  # mask is 1 background and 2 infarct
     validation_size = 0.1
@@ -44,7 +45,7 @@ def main():
 
     # Get the path to the files for the neural net
     # We don't want to split train/valid for KFold crossval
-    X_train, y_train, X_valid, y_valid = ds_fetcher.get_train_files(sample_size=sample_size,
+    X_train, y_train, X_valid, y_valid, z_train, z_valid= ds_fetcher.get_train_files(sample_size=sample_size,
                                                                     validation_size=validation_size)
     full_x_test = ds_fetcher.get_test_files(sample_size)
 
@@ -63,20 +64,21 @@ def main():
 
     # Testing callbacks
     pred_thresh = 0.5
-    pred_saver_cb = PredictionsSaverCallback(os.path.join(script_dir, '../output/submit.csv.gz'),
+    pred_saver_cb = PredictionsSaverCallback(os.path.join(script_dir, '../output/submit_'+ helpers.get_model_timestamp() + '.csv.gz'),
                                              origin_img_size, pred_thresh)
 
     # Define our neural net architecture
     net = unet.UNet1024((1, *input_img_resize))
     classifier = nn.classifier.InfarctClassifier(net, epochs)
 
-    train_ds = TrainImageDataset(X_train, y_train, input_img_resize, X_transform=None)
+    img_aug = random_shift_scale_rotate  # Image augmentation with shift, scaling and rotation
+    train_ds = TrainImageDataset(X_train, y_train, z_train, input_img_resize, X_transform=img_aug)
     train_loader = DataLoader(train_ds, batch_size,
                               sampler=RandomSampler(train_ds),
                               num_workers=threads,
                               pin_memory=use_cuda)
 
-    valid_ds = TrainImageDataset(X_valid, y_valid, input_img_resize, threshold=threshold)
+    valid_ds = TrainImageDataset(X_valid, y_valid, z_valid, input_img_resize, threshold=threshold)
     valid_loader = DataLoader(valid_ds, batch_size,
                               sampler=SequentialSampler(valid_ds),
                               num_workers=threads,
@@ -100,4 +102,6 @@ def main():
 
 
 if __name__ == '__main__':
+    # Trying majority voting
     main()
+    torch.cuda.empty_cache()

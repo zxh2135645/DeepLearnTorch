@@ -20,14 +20,14 @@ def random_hue_saturation_value(image, hue_shift_limit=(-180, 180),
     return image
 
 
-def random_shift_scale_rotate(image, mask,
+def random_shift_scale_rotate(image, mask, maskout,
                               shift_limit=(-0.0625, 0.0625),
                               scale_limit=(-0.1, 0.1),
                               rotate_limit=(-45, 45), aspect_limit=(0, 0),
                               borderMode=cv2.BORDER_CONSTANT, u=0.5):
     if np.random.random() < u:
-        height, width, channel = image.shape
-
+        height, width = image.shape
+        #height, width, channel = image.shape
         angle = np.random.uniform(rotate_limit[0], rotate_limit[1])  # degree
         scale = np.random.uniform(1 + scale_limit[0], 1 + scale_limit[1])
         aspect = np.random.uniform(1 + aspect_limit[0], 1 + aspect_limit[1])
@@ -55,8 +55,12 @@ def random_shift_scale_rotate(image, mask,
                                    borderValue=(
                                        0, 0,
                                        0,))
+        maskout = cv2.warpPerspective(maskout, mat, (width, height), flags=cv2.INTER_LINEAR, borderMode=borderMode,
+                                   borderValue=(
+                                       0, 0,
+                                       0,))
 
-    return image, mask
+    return image, mask, maskout
 
 
 def random_horizontal_flip(image, mask, u=0.5):

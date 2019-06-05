@@ -15,6 +15,8 @@ def image_to_tensor(image, mean=0, std=1.):
         tensor: A Pytorch tensor
     """
     image = image.astype(np.float32)
+    mean = np.mean(image)
+    std = np.std(image)
     image = (image - mean) / std
     # image = image.transpose((2, 0, 1))
     image = np.expand_dims(image, axis=0)  # For gray-scale image
@@ -32,8 +34,7 @@ def mask_to_tensor(mask, threshold):
     Returns:
         tensor: A Pytorch tensor
     """
-    mask = mask
-    mask = (mask > threshold).astype(np.float32)
+    mask = (mask > threshold).astype(np.float32) #TODO
     tensor = torch.from_numpy(mask).type(torch.FloatTensor)
     return tensor
 

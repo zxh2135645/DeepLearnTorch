@@ -25,6 +25,7 @@ class InfarctClassifier:
         self.epoch_counter = 0
         self.use_cuda = torch.cuda.is_available()
 
+
     def restore_model(self, model_path):
         """
             Restore a model parameters from the one given in argument
@@ -34,9 +35,11 @@ class InfarctClassifier:
         """
         self.net.load_state_dict(torch.load(model_path))
 
-    def _criterion(self, logits, labels):
-        #l = losses_utils.BCELoss2d().forward(logits, labels) + losses_utils.SoftDiceLoss().forward(logits, labels) #TODO
-        l = losses_utils.SoftDiceLoss().forward(logits, labels)
+    def _criterion(self, logits, labels, mask):
+        #l = losses_utils.BCELoss2d().forward(logits*mask, labels*mask) + losses_utils.SoftDiceLoss().forward(logits*mask, labels*mask) #TODO
+        #l = losses_utils.SoftDiceLoss().forward(logits, labels)
+        # l = losses_utils.FocalLoss(gamma=1).forward(logits, labels, mask)
+        l = losses_utils.BCELoss2d().forward(logits, labels, mask)
         return l
 
     def _validate_epoch(self, valid_loader, threshold):
@@ -50,28 +53,32 @@ class InfarctClassifier:
         targets = None  # To save the last target batch
         preds = None  # To save the last prediction batch
         with tqdm(total=it_count, desc="Validating", leave=False) as pbar:
-            for ind, (images, targets) in enumerate(valid_loader):
+            for ind, (images, targets, mask) in enumerate(valid_loader):
                 if self.use_cuda:
                     images = images.cuda()
                     targets = targets.cuda()
+                    mask = mask.cuda()
 
-                # Volatile because we are in pure inference mode
-                # http://pytorch.org/docs/master/notes/autograd.html#volatile
-                images = Variable(images, volatile=True)
-                targets = Variable(targets, volatile=True)
+                with torch.no_grad(): #Not sure
 
-                # forward
-                logits = self.net(images)
-                probs = F.sigmoid(logits)
-                preds = (probs > threshold).float()
+                    # Volatile because we are in pure inference mode
+                    # http://pytorch.org/docs/master/notes/autograd.html#volatile
+                    images = Variable(images)
+                    targets = Variable(targets)
+                    mask = Variable(mask)
 
-                loss = self._criterion(logits, targets)
-                acc = losses_utils.dice_coeff(preds, targets)
-                losses.update(loss.data[0], batch_size)
-                dice_coeffs.update(acc.data[0], batch_size)
-                pbar.update(1)
+                    # forward
+                    logits = self.net(images)
+                    probs = F.sigmoid(logits)
+                    preds = (probs > threshold).float()
 
-        return losses.avg, dice_coeffs.avg, images, targets, preds
+                    loss = self._criterion(logits, targets, mask)
+                    acc = losses_utils.dice_coeff(preds*mask, targets*mask)
+                    losses.update(loss.data[0], batch_size)
+                    dice_coeffs.update(acc.data[0], batch_size)
+                    pbar.update(1)
+
+        return losses.avg, dice_coeffs.avg, images, targets, mask, preds
 
     def _train_epoch(self, train_loader, optimizer, threshold):
         losses = tools.AverageMeter()
@@ -84,12 +91,13 @@ class InfarctClassifier:
                   desc="Epochs {}/{}".format(self.epoch_counter + 1, self.max_epochs),
                   bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{remaining}{postfix}]'
                   ) as pbar:
-            for ind, (inputs, target) in enumerate(train_loader):
+            for ind, (inputs, target, mask) in enumerate(train_loader):
 
                 if self.use_cuda:
                     inputs = inputs.cuda()
                     target = target.cuda()
-                inputs, target = Variable(inputs), Variable(target)
+                    mask = mask.cuda()
+                inputs, target, mask = Variable(inputs), Variable(target), Variable(mask)
 
                 # forward
                 logits = self.net.forward(inputs)
@@ -97,13 +105,13 @@ class InfarctClassifier:
                 pred = (probs > threshold).float()
 
                 # backward + optimize
-                loss = self._criterion(logits, target)
+                loss = self._criterion(logits, target, mask)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
                 # print statistics
-                acc = losses_utils.dice_coeff(pred, target)
+                acc = losses_utils.dice_coeff(pred*mask, target*mask)
 
                 losses.update(loss.data[0], batch_size)
                 dice_coeffs.update(acc.data[0], batch_size)
@@ -127,7 +135,7 @@ class InfarctClassifier:
         self.net.eval()
 
         # Run the validation pass
-        val_loss, val_acc, last_images, last_targets, last_preds = self._validate_epoch(valid_loader, threshold)
+        val_loss, val_acc, last_images, last_targets,last_mask, last_preds = self._validate_epoch(valid_loader, threshold)
         print("val_loss is: ", val_loss)
         print("val_acc is: ", val_acc)
         print("last_images is: ", last_images)
@@ -142,7 +150,7 @@ class InfarctClassifier:
             for cb in callbacks:
                 cb(step_name="epoch",
                    net=self.net,
-                   last_val_batch=(last_images, last_targets, last_preds),
+                   last_val_batch=(last_images, last_targets, last_preds),  # TODO
                    epoch_id=self.epoch_counter + 1,
                    train_loss=train_loss, train_acc=train_acc,
                    val_loss=val_loss, val_acc=val_acc
@@ -168,7 +176,7 @@ class InfarctClassifier:
         if self.use_cuda:
             self.net.cuda()
         optimizer = optim.Adam(self.net.parameters(), lr=1e-3)
-        lr_scheduler = ReduceLROnPlateau(optimizer, 'min', patience=2, verbose=True, min_lr=1e-7)
+        lr_scheduler = ReduceLROnPlateau(optimizer, 'min', patience=4, verbose=True, min_lr=1e-8)
 
         for epoch in range(epochs):
             self._run_epoch(train_loader, valid_loader, optimizer, lr_scheduler, threshold, callbacks)
@@ -200,23 +208,24 @@ class InfarctClassifier:
                 if self.use_cuda:
                     images = images.cuda()
 
-                images = Variable(images, volatile=True)  # TODO
+                with torch.no_grad():  # Not sure
+                    images = Variable(images)
 
-                # forward
-                logits = self.net(images)
-                probs = F.sigmoid(logits)
-                probs = probs.data.cpu().numpy()
-                print('In classifier')
-                print('probs is ', probs)
-                print('callbacks is:', callbacks)
+                    # forward
+                    logits = self.net(images)
+                    probs = F.sigmoid(logits)
+                    probs = probs.data.cpu().numpy()
+                    print('In classifier')
+                    print('probs is ', probs)
+                    print('callbacks is:', callbacks)
 
-                # If there are callback call their __call__ method and pass in some arguments
-                if callbacks:
-                    for cb in callbacks:
-                        cb(step_name="predict",
-                           net=self.net,
-                           probs=probs,
-                           files_name=files_name
-                           )
+                    # If there are callback call their __call__ method and pass in some arguments
+                    if callbacks:
+                        for cb in callbacks:
+                            cb(step_name="predict",
+                               net=self.net,
+                               probs=probs,
+                               files_name=files_name
+                               )
 
-                pbar.update(1)
+                    pbar.update(1)

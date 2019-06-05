@@ -7,14 +7,16 @@ BN_EPS = 1e-4
 
 class ConvBnRelu2d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, padding=1, dilation=1, stride=1, groups=1, is_bn=True,
-                 is_relu=True):
+                 is_relu=True, is_dropout=False):
         super(ConvBnRelu2d, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding, stride=stride,
                               dilation=dilation, groups=groups, bias=False)
         self.bn = nn.BatchNorm2d(out_channels, eps=BN_EPS)
         self.relu = nn.ReLU(inplace=True)
+        self.dropout = nn.Dropout2d(0.5) # dropout 50%
         if is_bn is False: self.bn = None
         if is_relu is False: self.relu = None
+        if is_dropout is False: self.dropout = None
 
     def forward(self, x):
         x = self.conv(x)
@@ -22,6 +24,8 @@ class ConvBnRelu2d(nn.Module):
             x = self.bn(x)
         if self.relu is not None:
             x = self.relu(x)
+        if self.dropout is not None:
+            x = self.dropout(x)
         return x
 
 
@@ -74,26 +78,27 @@ class UNet1024(nn.Module):
         # assert(C==1)
 
         # 1024
-        self.down1 = StackEncoder(C, 24, kernel_size=3)  # 512
-        self.down2 = StackEncoder(24, 64, kernel_size=3)  # 256
+        self.down1 = StackEncoder(C, 32, kernel_size=3)  # 512
+        self.down2 = StackEncoder(32, 64, kernel_size=3)  # 256
         self.down3 = StackEncoder(64, 128, kernel_size=3)  # 128
         self.down4 = StackEncoder(128, 256, kernel_size=3)  # 64
-        self.down5 = StackEncoder(256, 512, kernel_size=3)  # 32
-        self.down6 = StackEncoder(512, 1024, kernel_size=3)  # 16
+        # self.down5 = StackEncoder(256, 512, kernel_size=3)  # 32
+        # self.down6 = StackEncoder(512, 1024, kernel_size=3)  # 16
 
         self.center = nn.Sequential(
-            ConvBnRelu2d(1024, 1024, kernel_size=3, padding=1, stride=1),
+            # ConvBnRelu2d(1024, 1024, kernel_size=3, padding=1, stride=1),
+            ConvBnRelu2d(256, 256, kernel_size=3, padding=1, stride=1),
         )
 
         # 8
         # x_big_channels, x_channels, y_channels
-        self.up6 = StackDecoder(1024, 1024, 512, kernel_size=3)  # 16
-        self.up5 = StackDecoder(512, 512, 256, kernel_size=3)  # 32
+        # self.up6 = StackDecoder(1024, 1024, 512, kernel_size=3)  # 16
+        # self.up5 = StackDecoder(512, 512, 256, kernel_size=3)  # 32
         self.up4 = StackDecoder(256, 256, 128, kernel_size=3)  # 64
         self.up3 = StackDecoder(128, 128, 64, kernel_size=3)  # 128
-        self.up2 = StackDecoder(64, 64, 24, kernel_size=3)  # 256
-        self.up1 = StackDecoder(24, 24, 24, kernel_size=3)  # 512
-        self.classify = nn.Conv2d(24, 1, kernel_size=1, padding=0, stride=1, bias=True)
+        self.up2 = StackDecoder(64, 64, 32, kernel_size=3)  # 256
+        self.up1 = StackDecoder(32, 32, 32, kernel_size=3)  # 512
+        self.classify = nn.Conv2d(32, 1, kernel_size=1, padding=0, stride=1, bias=True) # Number of channels
 
     def _crop_concat(self, upsampled, bypass):
         """
@@ -114,13 +119,13 @@ class UNet1024(nn.Module):
         down2, out = self.down2(out)  # ;print('down2',down2.size())  #128
         down3, out = self.down3(out)  # ;print('down3',down3.size())  #64
         down4, out = self.down4(out)  # ;print('down4',down4.size())  #32
-        down5, out = self.down5(out)  # ;print('down5',down5.size())  #16
-        down6, out = self.down6(out)  # ;print('down6',down6.size())  #8
+        # down5, out = self.down5(out)  # ;print('down5',down5.size())  #16
+        # down6, out = self.down6(out)  # ;print('down6',down6.size())  #8
         pass  # ;print('out  ',out.size())
 
         out = self.center(out)
-        out = self.up6(down6, out)
-        out = self.up5(down5, out)
+        # out = self.up6(down6, out)
+        # out = self.up5(down5, out)
         out = self.up4(down4, out)
         out = self.up3(down3, out)
         out = self.up2(down2, out)

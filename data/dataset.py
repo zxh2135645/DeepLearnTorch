@@ -7,7 +7,7 @@ import img.transformer as transformer
 
 # Reference: https://github.com/pytorch/vision/blob/master/torchvision/datasets/folder.py#L66
 class TrainImageDataset(data.Dataset):
-    def __init__(self, X_data, y_data=None, img_resize=(64, 64),
+    def __init__(self, X_data, y_data=None, z_data=None, img_resize=(64, 64),
                  X_transform=None, y_transform=None, threshold=1.5):
         """
             A dataset loader taking images paths as argument and return
@@ -17,6 +17,7 @@ class TrainImageDataset(data.Dataset):
                 threshold (float): The threshold used to consider the mask present or not
                 X_data (list): List of paths to the training images
                 y_data (list, optional): List of paths to the target images
+                z_data (list, optional): List of paths to the masked out images
                 img_resize (tuple): Tuple containing the new size of the images
                 X_transform (callable, optional): A function/transform that takes in 2 numpy arrays.
                     Assumes X_data and y_data are not None.
@@ -31,6 +32,7 @@ class TrainImageDataset(data.Dataset):
         self.img_resize = img_resize
         self.y_transform = y_transform
         self.X_transform = X_transform
+        self.z_train_masks = z_data
 
     def __getitem__(self, index):
         """
@@ -50,15 +52,23 @@ class TrainImageDataset(data.Dataset):
         mask = transformer.center_cropping_resize(mask, self.img_resize)
         mask = np.asarray(mask.convert("L"), dtype=np.float32)  # GreyScale
 
+        maskout = Image.open(self.z_train_masks[index])
+        # maskout = maskout.resize(self.img_resize, Image.ANTIALIAS)
+        maskout = transformer.center_cropping_resize(maskout, self.img_resize)
+        maskout = np.asarray(maskout.convert("L"), dtype=np.float32)  # GreyScale
+
         if self.X_transform:
-            img, mask = self.X_transform(img, mask)
+            img, mask, maskout = self.X_transform(img, mask, maskout)
 
         if self.y_transform:
-            img, mask = self.y_transform(img, mask)
+            img, mask, maskout = self.y_transform(img, mask, maskout)
 
         img = transformer.image_to_tensor(img)
         mask = transformer.mask_to_tensor(mask, self.threshold)
-        return img, mask
+        maskout = transformer.mask_to_tensor(maskout, 0.5)
+        #print("UNIQUE of mask is", np.unique(mask))
+        #print("UNIQUE of maskout is", np.unique(maskout))
+        return img, mask, maskout
 
     def __len__(self):
         assert len(self.X_train) == len(self.y_train_masks)
@@ -66,7 +76,7 @@ class TrainImageDataset(data.Dataset):
 
 
 class TestImageDataset(data.Dataset):
-    def __init__(self, X_data, img_resize=(128, 128)):
+    def __init__(self, X_data, img_resize=(64, 64)):
         """
             A dataset loader taking images paths as argument and return
             as them as tensors from getitem()
