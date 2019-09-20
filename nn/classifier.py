@@ -74,8 +74,14 @@ class InfarctClassifier:
 
                     loss = self._criterion(logits, targets, mask)
                     acc = losses_utils.dice_coeff(preds*mask, targets*mask)
-                    losses.update(loss.data[0], batch_size)
-                    dice_coeffs.update(acc.data[0], batch_size)
+
+                    # No longer works for pytorch>=0.5
+                    # losses.update(loss.data[0], batch_size)
+                    losses.update(loss.data, batch_size)
+
+                    # No longer works for pytorch>=0.5
+                    # dice_coeffs.update(acc.data[0], batch_size)
+                    dice_coeffs.update(acc.data, batch_size)
                     pbar.update(1)
 
         return losses.avg, dice_coeffs.avg, images, targets, mask, preds
@@ -113,12 +119,20 @@ class InfarctClassifier:
                 # print statistics
                 acc = losses_utils.dice_coeff(pred*mask, target*mask)
 
-                losses.update(loss.data[0], batch_size)
-                dice_coeffs.update(acc.data[0], batch_size)
+                # No longer works for pytorch>=0.5
+                # losses.update(loss.data[0], batch_size)
+                losses.update(loss.data, batch_size)
+
+                # No longer works for pytorch>=0.5
+                # dice_coeffs.update(acc.data[0], batch_size)
+                dice_coeffs.update(acc.data, batch_size)
 
                 # Update pbar
-                pbar.set_postfix(OrderedDict(loss='{0:1.5f}'.format(loss.data[0]),
-                                             dice_coeff='{0:1.5f}'.format(acc.data[0])))
+                # No longer works for pytorch>=0.5
+                # pbar.set_postfix(OrderedDict(loss='{0:1.5f}'.format(loss.data[0]),
+                #                              dice_coeff='{0:1.5f}'.format(acc.data[0])))
+                pbar.set_postfix(OrderedDict(loss='{0:1.5f}'.format(loss.data),
+                                             dice_coeff='{0:1.5f}'.format(acc.data)))
                 pbar.update(1)
         return losses.avg, dice_coeffs.avg
 

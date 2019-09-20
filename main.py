@@ -26,9 +26,9 @@ def main():
     helpers.clear_logs_folder()
 
     # Hyperparameters
-    input_img_resize = (64, 64) # The resize size of the input images of the neural net
-    output_img_resize = (64, 64) # The resize size of the output images of the neural net
-    batch_size = 16
+    input_img_resize = (16, 16) # The resize size of the input images of the neural net
+    output_img_resize = (16, 16) # The resize size of the output images of the neural net
+    batch_size = 100
     epochs = 50 # 100
     threshold = 1.5  # mask is 1 background and 2 infarct
     validation_size = 0.1
